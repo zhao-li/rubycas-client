@@ -234,6 +234,13 @@ module CASClient
       https = Net::HTTP::Proxy(proxy_host, proxy_port).new(uri.host, uri.port)
       https.use_ssl = (uri.scheme == 'https')
       https.verify_mode = (@force_ssl_verification ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE)
+
+      # no longer checking if using cert is enabled since this monkey patch does not allow for configuration
+      log.info "Adding client certificate to Net::HTTP"
+      https.cert = load_cert_file(ENV['SERVER_CERTIFICATE'])
+      https.key = load_key_file(ENV['SERVER_CERTIFICATE'])
+      # no longer checking if using cert is enabled since this monkey patch does not allow for configuration:end
+
       https
     end
 
@@ -286,6 +293,26 @@ module CASClient
         vals.each {|v| pairs << (v.nil? ? CGI.escape(k) : "#{CGI.escape(k)}=#{CGI.escape(v)}")}
       end
       pairs.join("&")
+    end
+
+    def load_cert_file(cert_file)
+      log.debug "cert_file: #{cert_file}"
+      begin
+        OpenSSL::X509::Certificate.new(File.read(cert_file))
+      rescue Exception => e
+        log.error "There was a problem with the cert_file! (#{e.inspect})"
+        raise "There was a problem with the cert_file! (#{e.message})"
+      end
+    end
+
+    def load_key_file(key_file)
+      log.debug "key_file: #{key_file}"
+      begin
+        OpenSSL::PKey::RSA.new(File.read(key_file)) 
+      rescue Exception => e
+        log.error "There was a problem with the key_file! (#{e.inspect})"
+        raise "There was a problem with the key_file! (#{e.message})"
+      end
     end
   end
 end
